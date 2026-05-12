@@ -3,26 +3,14 @@ Critical-path tests for the Legawrite job signaling system.
 Tests cover: job creation, state machine transitions, and SSE event format.
 Run with: pytest backend/tests/ -v
 """
-import json
+
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 from app.main import app
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _make_job(status="pending", result=None, error=None):
-    return json.dumps({
-        "job_id": "test-job-id",
-        "prompt": "test prompt",
-        "status": status,
-        "result": result,
-        "error": error,
-    })
 
 
 # ---------------------------------------------------------------------------

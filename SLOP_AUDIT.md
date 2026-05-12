@@ -2,7 +2,7 @@
 
 ## Executive Summary
 - **Total Files Scanned**: 14
-- **Slop Items Found**: 3 (all removed)
+- **Slop Items Found**: 5 (all removed)
 - **Status**: CLEAN
 
 ---
@@ -53,6 +53,18 @@
 - **Item**: `catch (err: any)` suppresses TypeScript's type checker
 - **Reasoning**: `any` is a type-safety escape hatch. CLAUDE.md mandates "Strict Typing".
 - **Action**: Changed to `err: unknown` with `instanceof Error` guard. ✅ Removed.
+
+### 4. Unused `MagicMock` Import in Tests
+- **File**: `backend/tests/test_api.py` line 9
+- **Item**: `MagicMock` imported from `unittest.mock` but never referenced in any test function
+- **Reasoning**: Unused import — flagged by anti-pattern rule §4. CLAUDE.md mandates zero unused imports.
+- **Action**: Removed from import line. ✅
+
+### 5. Unused `_make_job` Helper in Tests
+- **File**: `backend/tests/test_api.py` lines 14–26
+- **Item**: `_make_job()` helper function defined but never called by any test
+- **Reasoning**: Dead code — function with zero callers. Scaffolded during initial test writing and never wired up.
+- **Action**: Removed entirely. ✅
 
 ---
 
