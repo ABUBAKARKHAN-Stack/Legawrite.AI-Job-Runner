@@ -120,11 +120,12 @@ PENDING ──► PROCESSING ──► COMPLETED
 
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
-| **Worker crash mid-job** | Job stays in `PROCESSING` with no Pub/Sub message | At-least-once: re-queue via a separate watchdog or Celery visibility timeout. Currently, re-deploy restarts the worker loop; the job key TTL (1h) prevents ghost data. |
+| **Worker crash mid-job** | Job stays in `PROCESSING` with no Pub/Sub message | `BLPOP` is **at-most-once** — job is removed from the queue before it finishes, so a crash loses it. Production fix: a watchdog queries Redis for jobs stuck in `PROCESSING` > 10 min and re-queues them (achieving at-least-once). Celery/RQ have this built in. Currently: `restart: on-failure` restarts the worker; job TTL (1h) prevents ghost data. |
 | **Client disconnect** | `request.is_disconnected()` returns `True` | `EventSource` auto-reconnects. On reconnect, the API reads the current job state from Redis and immediately sends the current status — no signal is lost. |
 | **API node crash** | Client loses SSE connection | `EventSource` reconnects to any healthy API node. Redis state is the source of truth; the new node resumes streaming. |
 | **Redis down** | `/health` returns 503 | Load balancer stops routing. Worker reconnects on next `blpop` call. Jobs in-flight are lost (acceptable for this demo scope). |
 | **Duplicate submission** | Same prompt submitted twice | Two separate `job_id` UUIDs are created — idempotency is at the job-ID level. Clients track their own `job_id`; duplicate UI submissions are blocked by disabling the form while a job is active. |
+| **Retry & backoff** | Job in `FAILED` state | Not implemented in this demo. Production: move failed jobs to a dead-letter queue; retry up to 3× with exponential backoff (1s, 4s, 16s); permanently mark `FAILED` after max retries and alert. |
 
 ---
 
@@ -139,7 +140,7 @@ PENDING ──► PROCESSING ──► COMPLETED
 | Layer | Mechanism |
 |---|---|
 | **API tier** | Horizontal scale-out (stateless FastAPI nodes). Each node subscribes to only the channels for its own connections. L7 load balancer (Nginx / AWS ALB) with sticky sessions for SSE OR Redis Pub/Sub fanout makes sticky sessions optional. |
-| **Worker tier** | Horizontal scale-out. Multiple workers consume from the same `job_queue` Redis list. `BLPOP` provides at-most-once delivery per worker. |
+| **Worker tier** | Horizontal scale-out. Multiple workers consume from the same `job_queue` Redis list. `BLPOP` is atomic — each job goes to exactly one worker (no duplication). This is at-most-once delivery; a watchdog is required for at-least-once guarantees (see Failure Modes). |
 | **Connection tier** | Tune OS: `ulimit -n 1000000`, `net.ipv4.tcp_tw_reuse`, `SO_REUSEPORT`. Use HTTP/2 to multiplex streams. |
 | **Redis tier** | Redis Cluster for Pub/Sub throughput. Separate read replicas for state reads. |
 
